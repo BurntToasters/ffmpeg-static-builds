@@ -1,3 +1,44 @@
+BurntToasters: FFMPEG Notice
+=============
+## FFmpeg Static Build — Linked Components
+
+The following libraries are statically linked into the FFmpeg binaries. Source code for all of them is included in this release.
+
+### GPL-licensed
+
+| Component | License | Source |
+|-----------|---------|--------|
+| FFmpeg | GPL-2.0-or-later | [git://git.ffmpeg.org/ffmpeg.git](https://git.ffmpeg.org/ffmpeg.git) |
+| x264 | GPL-2.0-or-later | [https://code.videolan.org/videolan/x264](https://code.videolan.org/videolan/x264) |
+| x265 | GPL-2.0-or-later | [https://bitbucket.org/multicoreware/x265_git](https://bitbucket.org/multicoreware/x265_git) |
+| enca | GPL-2.0 | [https://dl.cihar.com/enca/](https://dl.cihar.com/enca/) |
+
+### LGPL-licensed
+
+| Component | License | Source |
+|-----------|---------|--------|
+| lame (libmp3lame) | LGPL-2.0 | [https://github.com/rbrito/lame](https://github.com/rbrito/lame) |
+| fribidi | LGPL-2.1-or-later | [https://github.com/fribidi/fribidi](https://github.com/fribidi/fribidi) |
+| libiconv | LGPL-2.1 | [https://ftp.gnu.org/pub/gnu/libiconv/](https://ftp.gnu.org/pub/gnu/libiconv/) |
+
+### Permissive-licensed
+
+| Component | License | Source |
+|-----------|---------|--------|
+| freetype | FTL / GPL-2.0 | [https://download.savannah.gnu.org/releases/freetype/](https://download.savannah.gnu.org/releases/freetype/) |
+| fontconfig | MIT-like | [https://www.freedesktop.org/software/fontconfig/release/](https://www.freedesktop.org/software/fontconfig/release/) |
+| libass | ISC | [https://github.com/libass/libass](https://github.com/libass/libass) |
+| expat | MIT | [https://github.com/libexpat/libexpat](https://github.com/libexpat/libexpat) |
+
+### Build tools (NOT linked into binaries — no source distribution required)
+
+| Tool | License | Source |
+|------|---------|--------|
+| cmake | BSD-3-Clause | [https://cmake.org/download/](https://cmake.org/download/) |
+| nasm | BSD-2-Clause | [https://www.nasm.us/pub/nasm/releasebuilds/](https://www.nasm.us/pub/nasm/releasebuilds/) |
+| yasm | BSD-3-Clause | [http://www.tortall.net/projects/yasm/releases/](http://www.tortall.net/projects/yasm/releases/) |
+| pkg-config | GPL-2.0 | [https://pkg-config.freedesktop.org/releases/](https://pkg-config.freedesktop.org/releases/) |
+
 FFmpeg README
 =============
 
