@@ -240,7 +240,7 @@ static void huff_data_2d(GetBitContext *gb, int16_t *part0_data[2], int16_t (*da
                    0, 2*esc_cnt, 0, (2*lav + 1));
         for (i = 0; i < esc_cnt; i++) {
             data[esc_idx[i]][0] = esc_data[0][i] - lav;
-            data[esc_idx[i]][0] = esc_data[0][i] - lav;
+            data[esc_idx[i]][1] = esc_data[1][i] - lav;
         }
     }
 }
@@ -858,7 +858,7 @@ int ff_aac_map_index_data(AACMPSLosslessData *ld,
     for (int i = 0; i < nb_param_sets; i++) {
         if (ld->coarse_quant_no[i] == 1) {
             coarse_to_fine(tmp_idx_data[i], data_type, start_band,
-                           stop_band - start_band);
+                           stop_band);
             ld->coarse_quant_no[i] = 0;
         }
     }

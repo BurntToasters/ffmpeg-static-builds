@@ -820,10 +820,9 @@ static int get_block_rd(SnowEncContext *enc, int mb_x, int mb_y,
         }
     }
 
-    /* copy the regions where obmc[] = (uint8_t)256 */
-    if(LOG2_OBMC_MAX == 8
-        && (mb_x == 0 || mb_x == b_stride-1)
-        && (mb_y == 0 || mb_y == b_height-1)){
+    /* copy the regions where obmc[] = (uint8_t)(1<<LOG2_OBMC_MAX) */
+    if ((mb_x == 0 || mb_x == b_stride-1) &&
+        (mb_y == 0 || mb_y == b_height-1)){
         if(mb_x == 0)
             x1 = FFMIN(x1, block_w);
         else
@@ -1839,10 +1838,10 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                                   EDGE_WIDTH  , EDGE_WIDTH  , EDGE_TOP | EDGE_BOTTOM);
         if (s->current_picture->data[2]) {
             enc->mpvencdsp.draw_edges(s->current_picture->data[1],
-                                      s->current_picture->linesize[1], w>>s->chroma_h_shift, h>>s->chroma_v_shift,
+                                      s->current_picture->linesize[1], AV_CEIL_RSHIFT(w, s->chroma_h_shift), AV_CEIL_RSHIFT(h, s->chroma_v_shift),
                                       EDGE_WIDTH>>s->chroma_h_shift, EDGE_WIDTH>>s->chroma_v_shift, EDGE_TOP | EDGE_BOTTOM);
             enc->mpvencdsp.draw_edges(s->current_picture->data[2],
-                                      s->current_picture->linesize[2], w>>s->chroma_h_shift, h>>s->chroma_v_shift,
+                                      s->current_picture->linesize[2], AV_CEIL_RSHIFT(w, s->chroma_h_shift), AV_CEIL_RSHIFT(h, s->chroma_v_shift),
                                       EDGE_WIDTH>>s->chroma_h_shift, EDGE_WIDTH>>s->chroma_v_shift, EDGE_TOP | EDGE_BOTTOM);
         }
     }

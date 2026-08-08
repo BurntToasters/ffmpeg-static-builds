@@ -25,6 +25,8 @@
 #include <gnutls/dtls.h>
 #include <gnutls/x509.h>
 
+#include "config_components.h"
+
 #include "avformat.h"
 #include "network.h"
 #include "os_support.h"
@@ -198,7 +200,7 @@ static int gnutls_gen_private_key(gnutls_x509_privkey_t *key)
     }
 
     ret = gnutls_x509_privkey_generate(*key, GNUTLS_PK_ECDSA,
-                                       gnutls_sec_param_to_pk_bits(GNUTLS_PK_ECDSA, GNUTLS_SEC_PARAM_MEDIUM), 0);
+                                       GNUTLS_CURVE_TO_BITS(GNUTLS_ECC_CURVE_SECP256R1), 0);
     if (ret < 0) {
         av_log(NULL, AV_LOG_ERROR, "TLS: Failed to generate private key: %s\n", gnutls_strerror(ret));
         goto einval_end;
@@ -438,6 +440,7 @@ static ssize_t gnutls_url_pull(gnutls_transport_ptr_t transport,
     URLContext *uc = s->is_dtls ? s->udp : s->tcp;
     int ret = ffurl_read(uc, buf, len);
     if (ret >= 0) {
+#if CONFIG_UDP_PROTOCOL
         if (s->is_dtls && s->listen && !c->dest_addr_len) {
             int err_ret;
 
@@ -449,6 +452,7 @@ static ssize_t gnutls_url_pull(gnutls_transport_ptr_t transport,
             }
             av_log(c, AV_LOG_TRACE, "Set UDP remote addr on UDP socket, now 'connected'\n");
         }
+#endif
         return ret;
     }
     if (ret == AVERROR_EXIT)
@@ -532,6 +536,7 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
     uint16_t gnutls_flags = 0;
     gnutls_x509_crt_t cert = NULL;
     gnutls_x509_privkey_t pkey = NULL;
+    int have_cert_pkey = 0;
     int ret;
 
     ff_gnutls_init();
@@ -540,32 +545,10 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
         if ((ret = ff_tls_open_underlying(s, h, uri, options)) < 0)
             goto fail;
     } else if (!s->host) {
-        /* With an external socket ff_tls_open_underlying() is skipped, so the
-         * host (used for SNI below) is never parsed. Parse it here to avoid
-         * passing a NULL s->host to gnutls_server_name_set(), which crashes. */
-        struct addrinfo hints = { .ai_flags = AI_NUMERICHOST }, *ai = NULL;
-        av_url_split(NULL, 0, NULL, 0, s->underlying_host, sizeof(s->underlying_host),
-                     NULL, NULL, 0, uri);
-        if (!getaddrinfo(s->underlying_host, NULL, &hints, &ai)) {
-            s->numerichost = 1;
-            freeaddrinfo(ai);
-        }
-        if (!(s->host = av_strdup(s->underlying_host))) {
-            ret = AVERROR(ENOMEM);
+        if ((ret = ff_tls_parse_host(s, s->underlying_host, sizeof(s->underlying_host), NULL, uri)) < 0)
             goto fail;
-        }
     }
 
-    if (s->is_dtls)
-        gnutls_flags |= GNUTLS_DATAGRAM;
-
-    if (s->listen)
-        gnutls_flags |= GNUTLS_SERVER;
-    else
-        gnutls_flags |= GNUTLS_CLIENT;
-    gnutls_init(&c->session, gnutls_flags);
-    if (!s->listen && !s->numerichost)
-        gnutls_server_name_set(c->session, GNUTLS_NAME_DNS, s->host, strlen(s->host));
     gnutls_certificate_allocate_credentials(&c->cred);
     if (s->ca_file) {
         ret = gnutls_certificate_set_x509_trust_file(c->cred, s->ca_file, GNUTLS_X509_FMT_PEM);
@@ -589,6 +572,7 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
             ret = AVERROR(EIO);
             goto fail;
         }
+        have_cert_pkey = 1;
     } else if (s->cert_file || s->key_file) {
         av_log(h, AV_LOG_ERROR, "cert and key required\n");
     } else if (s->cert_buf && s->key_buf) {
@@ -600,6 +584,7 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
             ret = AVERROR(EINVAL);
             goto fail;
         }
+        have_cert_pkey = 1;
     } else if (s->cert_buf || s->key_buf) {
         av_log(h, AV_LOG_ERROR, "cert and key required\n");
     }
@@ -621,7 +606,27 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
             ret = AVERROR(EINVAL);
             goto fail;
         }
+
+        have_cert_pkey = 1;
     }
+
+    if (s->is_dtls)
+        gnutls_flags |= GNUTLS_DATAGRAM;
+
+    if (s->listen)
+        gnutls_flags |= GNUTLS_SERVER;
+    else {
+        gnutls_flags |= GNUTLS_CLIENT;
+#if GNUTLS_VERSION_NUMBER >= 0x030500
+        if (have_cert_pkey)
+            gnutls_flags |= GNUTLS_FORCE_CLIENT_CERT;
+#endif
+    }
+
+    gnutls_init(&c->session, gnutls_flags);
+
+    if (!s->listen && !s->numerichost)
+        gnutls_server_name_set(c->session, GNUTLS_NAME_DNS, s->host, strlen(s->host));
     gnutls_credentials_set(c->session, GNUTLS_CRD_CERTIFICATE, c->cred);
     gnutls_transport_set_pull_function(c->session, gnutls_url_pull);
     gnutls_transport_set_push_function(c->session, gnutls_url_push);
