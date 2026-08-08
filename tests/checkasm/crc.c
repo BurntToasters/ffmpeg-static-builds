@@ -38,7 +38,7 @@ static void check_crc(const AVCRC *table_new, const char *name, unsigned idx)
 {
     declare_func(uint32_t, const AVCRC *ctx, uint32_t crc,
                  const uint8_t *buffer, size_t length);
-    const AVCRC *table_ref = check_key((AVCRC*)table_new, "crc_%s", name);
+    const AVCRC *table_ref = (const AVCRC *) check_key((CheckasmKey) table_new, "crc_%s", name);
 
     if (!table_ref)
         return;
@@ -87,14 +87,12 @@ void checkasm_check_crc(void)
         struct CustomTest *prev;
         AVCRC ctx[1024];
     } *ctx = NULL;
-    struct CustomTest *new = malloc(sizeof(*new));
+    struct CustomTest *new = av_mallocz(sizeof(*new));
     static int le, bits;
     static uint32_t poly;
 
     if (!new)
         fail();
-
-    memset(new, 0, sizeof(*new));
 
     if (!ctx) {
         le   = rnd() & 1;
@@ -103,7 +101,7 @@ void checkasm_check_crc(void)
     }
     av_assert0(av_crc_init(new->ctx, le, bits, poly, sizeof(new->ctx)) >= 0);
     if (ctx && !memcmp(ctx->ctx, new->ctx, sizeof(new->ctx))) {
-        free(new);
+        av_free(new);
     } else {
         new->prev = ctx;
         ctx = new;

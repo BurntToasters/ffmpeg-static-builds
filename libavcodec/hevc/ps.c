@@ -25,12 +25,13 @@
 
 #include "libavutil/imgutils.h"
 #include "libavutil/mem.h"
-#include "golomb.h"
-#include "h2645_vui.h"
+#include "libavutil/refstruct.h"
+
+#include "libavcodec/golomb.h"
+#include "libavcodec/h2645_vui.h"
 #include "data.h"
 #include "ps.h"
-#include "profiles.h"
-#include "libavutil/refstruct.h"
+#include "libavcodec/profiles.h"
 
 static const uint8_t default_scaling_list_intra[] = {
     16, 16, 16, 16, 17, 18, 21, 24,
@@ -633,8 +634,11 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
         }
     }
     vps->num_output_layer_sets = vps->vps_num_layer_sets + vps->num_add_layer_sets;
-    if (vps->num_output_layer_sets != 2)
-        return AVERROR_INVALIDDATA;
+    if (vps->num_output_layer_sets != 2) {
+        av_log(avctx, AV_LOG_WARNING,
+               "Unsupported num_output_layer_sets: %d\n", vps->num_output_layer_sets);
+        return AVERROR_PATCHWELCOME;
+    }
 
     sub_layers_max_present = get_bits1(gb); // vps_sub_layers_max_minus1_present_flag
     if (sub_layers_max_present) {
@@ -700,7 +704,7 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
 
     if (get_ue_golomb_31(gb) != 0 /* vps_num_rep_formats_minus1 */) {
         av_log(avctx, AV_LOG_ERROR, "Unexpected extra rep formats\n");
-        return AVERROR_INVALIDDATA;
+        return AVERROR_PATCHWELCOME;
     }
 
     vps->rep_format.pic_width_in_luma_samples  = get_bits(gb, 16);
@@ -915,8 +919,23 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
     if (vps->vps_max_layers > 1 && get_bits1(gb)) { /* vps_extension_flag */
         int ret = decode_vps_ext(gb, avctx, vps, layer1_id_included);
         if (ret == AVERROR_PATCHWELCOME) {
-            vps->nb_layers = 1;
-            av_log(avctx, AV_LOG_WARNING, "Ignoring unsupported VPS extension\n");
+            /* If alpha layer info was already parsed, preserve it for alpha decoding */
+            if (!(avctx->err_recognition & (AV_EF_BITSTREAM | AV_EF_COMPLIANT)) &&
+                vps->nb_layers == 2 &&
+                vps->layer_id_in_nuh[1] &&
+                (vps->scalability_mask_flag & HEVC_SCALABILITY_AUXILIARY)) {
+                av_log(avctx, AV_LOG_WARNING,
+                       "Broken VPS extension, treating as alpha video\n");
+                /* If alpha layer has no direct dependency on base layer,
+                 * assume poc_lsb_not_present for the alpha layer, so that
+                 * IDR slices on that layer won't read pic_order_cnt_lsb.
+                 * This matches the behavior of Apple VideoToolbox encoders. */
+                if (!vps->num_direct_ref_layers[1])
+                    vps->poc_lsb_not_present |= 1 << 1;
+            } else {
+                vps->nb_layers = 1;
+                av_log(avctx, AV_LOG_WARNING, "Ignoring unsupported VPS extension\n");
+            }
             ret = 0;
         } else if (ret < 0)
             goto err;
@@ -2001,9 +2020,9 @@ static int pps_scc_extension(GetBitContext *gb, AVCodecContext *avctx,
     pps->pps_curr_pic_ref_enabled_flag = get_bits1(gb);
     if (pps->residual_adaptive_colour_transform_enabled_flag = get_bits1(gb)) {
         pps->pps_slice_act_qp_offsets_present_flag = get_bits1(gb);
-        pps->pps_act_y_qp_offset  = get_se_golomb(gb) - 5;
-        pps->pps_act_cb_qp_offset = get_se_golomb(gb) - 5;
-        pps->pps_act_cr_qp_offset = get_se_golomb(gb) - 3;
+        pps->pps_act_y_qp_offset  = get_se_golomb(gb) - 5U;
+        pps->pps_act_cb_qp_offset = get_se_golomb(gb) - 5U;
+        pps->pps_act_cr_qp_offset = get_se_golomb(gb) - 3U;
 
 #define CHECK_QP_OFFSET(name) (pps->pps_act_ ## name ## _qp_offset <= -12 || \
                                pps->pps_act_ ## name ## _qp_offset >= 12)
