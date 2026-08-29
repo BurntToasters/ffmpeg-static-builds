@@ -56,3 +56,5 @@
 /libavfilter/vulkan/*.c
 /.*/
 !/.forgejo/
+.DS_Store
+.DS_Store
